@@ -694,7 +694,7 @@ impl<const OSC_RAW_BUF_SIZE: usize> Parser<OSC_RAW_BUF_SIZE> {
             // continue parsing.
             Ok(parsed) => {
                 let c = unsafe { parsed.chars().next().unwrap_unchecked() };
-                performer.print(c);
+                Self::ground_dispatch_char(performer, c);
 
                 self.partial_utf8_len = 0;
                 c.len_utf8() - old_bytes
@@ -710,7 +710,7 @@ impl<const OSC_RAW_BUF_SIZE: usize> Parser<OSC_RAW_BUF_SIZE> {
                         parsed.chars().next().unwrap_unchecked()
                     };
 
-                    performer.print(c);
+                    Self::ground_dispatch_char(performer, c);
 
                     self.partial_utf8_len = 0;
                     return c.len_utf8() - old_bytes;
@@ -737,10 +737,16 @@ impl<const OSC_RAW_BUF_SIZE: usize> Parser<OSC_RAW_BUF_SIZE> {
     #[inline]
     fn ground_dispatch<P: Perform>(performer: &mut P, text: &str) {
         for c in text.chars() {
-            match c {
-                '\x00'..='\x1f' | '\u{80}'..='\u{9f}' => performer.execute(c as u8),
-                _ => performer.print(c),
-            }
+            Self::ground_dispatch_char(performer, c);
+        }
+    }
+
+    /// Handle ground dispatch of print/execute for a single character.
+    #[inline]
+    fn ground_dispatch_char<P: Perform>(performer: &mut P, c: char) {
+        match c {
+            '\x00'..='\x1f' | '\u{80}'..='\u{9f}' => performer.execute(c as u8),
+            _ => performer.print(c),
         }
     }
 }
@@ -1526,6 +1532,23 @@ mod tests {
         assert_eq!(dispatcher.dispatched[0], Sequence::Print('é'));
         assert_eq!(dispatcher.dispatched[1], Sequence::Print('e'));
         assert_eq!(dispatcher.dispatched[2], Sequence::Print('\u{301}'));
+    }
+
+    #[test]
+    fn partial_utf8_c1() {
+        // NEL and RI, each split after its first byte.
+        const INPUT: &[u8] = b"\xC2\x85\xC2\x8D";
+
+        let mut dispatcher = Dispatcher::default();
+        let mut parser = Parser::new();
+
+        parser.advance(&mut dispatcher, &INPUT[..1]);
+        parser.advance(&mut dispatcher, &INPUT[1..3]);
+        parser.advance(&mut dispatcher, &INPUT[3..]);
+
+        assert_eq!(dispatcher.dispatched.len(), 2);
+        assert_eq!(dispatcher.dispatched[0], Sequence::Execute(0x85));
+        assert_eq!(dispatcher.dispatched[1], Sequence::Execute(0x8D));
     }
 
     #[test]

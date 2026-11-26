@@ -7,6 +7,8 @@ CHANGELOG
     nor a UTF-8 sequence
 - Character dropped when it followed a codepoint completed by a new `advance`
     call and preceded another partial codepoint
+- UTF-8 encoded C1 escapes printed instead of executed when split across two
+    `advance` calls
 
 ## 0.15.0
 
