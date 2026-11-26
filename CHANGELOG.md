@@ -5,6 +5,8 @@ CHANGELOG
 
 - Added `Parser::is_idle` to check whether the parser is neither in an escape,
     nor a UTF-8 sequence
+- Character dropped when it followed a codepoint completed by a new `advance`
+    call and preceded another partial codepoint
 
 ## 0.15.0
 

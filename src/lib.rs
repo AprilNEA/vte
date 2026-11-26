@@ -713,7 +713,7 @@ impl<const OSC_RAW_BUF_SIZE: usize> Parser<OSC_RAW_BUF_SIZE> {
                     performer.print(c);
 
                     self.partial_utf8_len = 0;
-                    return valid_bytes - old_bytes;
+                    return c.len_utf8() - old_bytes;
                 }
 
                 match err.error_len() {
@@ -1504,6 +1504,28 @@ mod tests {
 
         assert_eq!(dispatcher.dispatched[0], Sequence::Print('俙'));
         assert_eq!(dispatcher.dispatched[1], Sequence::Print('�'));
+    }
+
+    #[test]
+    fn partial_utf8_separating_multiple_chars() {
+        // The bytes completing the partial codepoint are followed by another
+        // complete character and the start of a third one, so `partial_utf8`
+        // holds two valid characters before the incomplete one.
+
+        // "ée\u{301}"
+        const INPUT: &[u8] = b"\xC3\xA9e\xCC\x81";
+
+        let mut dispatcher = Dispatcher::default();
+        let mut parser = Parser::new();
+
+        parser.advance(&mut dispatcher, &INPUT[..1]);
+        parser.advance(&mut dispatcher, &INPUT[1..4]);
+        parser.advance(&mut dispatcher, &INPUT[4..]);
+
+        assert_eq!(dispatcher.dispatched.len(), 3);
+        assert_eq!(dispatcher.dispatched[0], Sequence::Print('é'));
+        assert_eq!(dispatcher.dispatched[1], Sequence::Print('e'));
+        assert_eq!(dispatcher.dispatched[2], Sequence::Print('\u{301}'));
     }
 
     #[test]
